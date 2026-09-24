@@ -1,0 +1,11 @@
+{
+  "title": "NutriScan",
+  "description": "NutriScan — scan your food, track calories and macros, and build healthier eating habits.",
+  "robots": {
+    "index": true
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
