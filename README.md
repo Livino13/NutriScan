@@ -2,6 +2,8 @@
 
 Scan your food, track calories and macros, and build healthier eating habits.
 
+**Live demo:** https://nutriscan-nine-omega.vercel.app
+
 NutriScan is a mobile-friendly web app: snap a photo of a meal, get AI-powered nutrition analysis, and track your daily intake across a dashboard, food diary, and insights views.
 
 ## Features
