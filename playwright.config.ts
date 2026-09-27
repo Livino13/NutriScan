@@ -23,9 +23,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'PORT=8445 pnpm dev',
+    command: 'pnpm dev',
     url: 'http://localhost:8445',
     reuseExistingServer: false,
     timeout: 90000,
+    env: { PORT: '8445' },
   },
 });
