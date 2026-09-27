@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { UserProfile, NutritionGoals, FoodEntry } from './types'
 import { calculateBMI, getBMICategory, calculateGoals } from './utils'
 import type { BackupData } from './storage'
+import type { CloudSync } from './useCloudSync'
 
 function kgToLbs(kg: number): number {
   return Math.round(kg * 2.20462)
@@ -18,11 +19,12 @@ function cmToFtIn(cm: number): { ft: number; inch: number } {
   return { ft, inch }
 }
 
-export default function Profile({ profile, goals, entries, water, onUpdateProfile, onUpdateGoals, onImportData, onExportData, onResetOnboarding }: {
+export default function Profile({ profile, goals, entries, water, account, onUpdateProfile, onUpdateGoals, onImportData, onExportData, onResetOnboarding }: {
   profile: UserProfile
   goals: NutritionGoals
   entries: FoodEntry[]
   water: number
+  account: CloudSync
   onUpdateProfile: (p: UserProfile) => void
   onUpdateGoals: (g: NutritionGoals) => void
   onImportData: (data: unknown) => boolean
@@ -217,6 +219,66 @@ export default function Profile({ profile, goals, entries, water, onUpdateProfil
   </div>
 </div>
       <div style={{ padding: '16px 16px 100px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Account & Sync */}
+        <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Account & Sync</div>
+          </div>
+          {!account.configured ? (
+            <div style={{ padding: '14px 18px', fontSize: 12, color: '#64748B', lineHeight: 1.6 }}>
+              ☁️ Cloud sync is not set up. Add your Firebase keys to <span style={{ fontFamily: 'monospace' }}>.env</span> to enable Google sign-in and sync across devices. Your data stays on this device until then.
+            </div>
+          ) : !account.user ? (
+            <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.6 }}>
+                Sign in to back up your diary to the cloud and sync it across devices.
+              </div>
+              <button onClick={account.signIn} style={{ padding: '12px', background: '#fff', color: '#0F172A', border: '1.5px solid #E2E8F0', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                Sign in with Google
+              </button>
+              {account.error && (
+                <div style={{ padding: '10px 14px', background: '#FEF2F2', borderRadius: 10, fontSize: 12, color: '#B91C1C', lineHeight: 1.5 }}>
+                  {account.error}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {account.user.photoURL ? (
+                  <img src={account.user.photoURL} alt="" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+                ) : (
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#F0F7DF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#365314', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    {(account.user.displayName || account.user.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {account.user.displayName || 'Google Account'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {account.user.email ?? ''}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: account.status === 'error' ? '#B91C1C' : '#059669', fontWeight: 600 }}>
+                {account.status === 'syncing' && 'Syncing…'}
+                {account.status === 'synced' && '✓ Synced across devices'}
+                {account.status === 'signed-out' && 'Signed out'}
+                {account.status === 'error' && (account.error || 'Sync error. Your data is safe on this device.')}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={account.syncNow} style={{ flex: 1, padding: '11px', background: '#F0FDF8', color: '#059669', border: '1.5px solid #A7F3D0', borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  Sync Now
+                </button>
+                <button onClick={account.signOut} style={{ flex: 1, padding: '11px', background: '#fff', color: '#64748B', border: '1.5px solid #E2E8F0', borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Personal Info */}
         <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -388,7 +450,10 @@ export default function Profile({ profile, goals, entries, water, onUpdateProfil
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your Data</div>
           </div>
           <div style={{ padding: '14px 18px', fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
-            {entries.length} meals logged · {water.toFixed(1)}L water today. Data lives only on this device — export a backup to keep it safe.
+            {entries.length} meals logged · {water.toFixed(1)}L water today.{' '}
+            {account.user
+              ? `Synced across your devices as ${account.user.email ?? 'your Google account'}.`
+              : 'Data lives only on this device — export a backup to keep it safe.'}
           </div>
           <div style={{ padding: '0 18px 16px', display: 'flex', gap: 8 }}>
             <button onClick={exportBackup} style={{ flex: 1, padding: '11px', background: '#F0FDF8', color: '#059669', border: '1.5px solid #A7F3D0', borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>

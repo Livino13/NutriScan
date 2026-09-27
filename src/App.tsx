@@ -2,6 +2,7 @@ import { useState, useEffect, Suspense, lazy } from 'react'
 import BottomNav from './BottomNav'
 import type { UserProfile, NutritionGoals, FoodEntry, ActivePage } from './types'
 import { load, save, loadWater, todayKey, trimEntries, buildBackup, isValidBackup, storageKeys } from './storage'
+import { useCloudSync } from './useCloudSync'
 
 const Onboarding = lazy(() => import('./Onboarding'))
 const Dashboard = lazy(() => import('./Dashboard'))
@@ -51,6 +52,11 @@ export default function App() {
   const [entries, setEntries] = useState<FoodEntry[]>(() => load(storageKeys.entries, []))
   const [water, setWater] = useState(() => loadWater(0))
   const [activePage, setActivePage] = useState<ActivePage>('home')
+
+  const cloud = useCloudSync({
+    profile, goals, entries, water,
+    setProfile, setGoals, setEntries, setWater,
+  })
 
   useEffect(() => { trimEntries(90) }, [])
   useEffect(() => { save(storageKeys.profile, profile) }, [profile])
@@ -140,6 +146,7 @@ export default function App() {
                 goals={goals}
                 entries={entries}
                 water={water}
+                account={cloud}
                 onUpdateProfile={setProfile}
                 onUpdateGoals={setGoals}
                 onImportData={importBackup}
