@@ -181,15 +181,40 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 
 ## Roadmap
 
+### Shipped
+
 - [x] AI food scanning with Gemini
 - [x] Dashboard, diary, insights, onboarding, profile
 - [x] Water intake tracking
 - [x] Google sign-in + Firestore cloud sync
 - [x] PWA offline support
 - [x] Live demo deployment
-- [ ] Barcode lookup for packaged foods
-- [ ] Weekly nutrition reports
+
+### Next up
+
+- [ ] Barcode lookup for packaged foods (Open Food Facts)
+- [ ] Text-based meal logging (describe a dish, no photo needed)
+- [ ] Per-item portion editor (adjust grams after scanning)
+- [ ] Favorite meals and one-tap re-logging
+- [ ] Weekly nutrition reports with highlights and low-protein flags
+- [ ] Meal-reminder notifications (wiring up the Profile toggle via Notification API + service worker)
+- [ ] Weight progress tracking with trend chart
+- [ ] Custom foods and saved recipes
+
+### Exploring
+
+- [ ] Micronutrient detail per item (sugar and sodium are already detected — surface them)
+- [ ] Streaks and goal celebrations
+- [ ] Dark mode
 - [ ] Multi-language support
+- [ ] Apple Health / Health Connect import
+- [ ] Shareable progress cards and PDF export
+- [ ] CI checks on pull requests (verify + e2e)
+
+### Housekeeping
+
+- [ ] Choose an open-source license
+- [ ] Prune leftover Figma scaffold duplicates (`imports/`, `src/imports/Component1`)
 
 ## FAQ
 
