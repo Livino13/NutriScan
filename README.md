@@ -28,6 +28,7 @@ NutriScan is a mobile-friendly web app: snap a photo of a meal, get AI-powered n
 - [Roadmap](#roadmap)
 - [FAQ](#faq)
 - [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -213,7 +214,7 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 
 ### Housekeeping
 
-- [ ] Choose an open-source license
+- [x] Choose an open-source license (MIT)
 - [ ] Prune leftover Figma scaffold duplicates (`imports/`, `src/imports/Component1`)
 
 ## FAQ
@@ -248,3 +249,7 @@ Client-side photos are downscaled to max 1024 px and rejected client-side over ~
 2. Run `pnpm verify` before pushing (typecheck + tests + build); run `pnpm test:e2e` for UI changes (needs `pnpm exec playwright install chromium` once).
 3. Format with `pnpm format`.
 4. Open a pull request against `main` with a short description and screenshots for UI changes.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
