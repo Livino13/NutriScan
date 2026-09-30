@@ -1,4 +1,4 @@
-import type { FoodEntry, NutritionGoals, UserProfile } from './types'
+import type { FoodEntry, NutritionGoals, UserProfile, WeightEntry } from './types'
 
 export const STORAGE_VERSION = 1
 const PREFIX = 'ns'
@@ -14,6 +14,7 @@ export const storageKeys = {
   entries: key('entries'),
   water: key('water'),
   waterDate: key('water_date'),
+  weightLogs: key('weight_logs'),
 } as const
 
 export function load<T>(storageKey: string, fallback: T): T {
@@ -99,6 +100,7 @@ export interface BackupData {
   entries: FoodEntry[]
   water: number
   waterDate: string | null
+  weightLogs: WeightEntry[]
 }
 
 export function buildBackup(args: {
@@ -106,6 +108,7 @@ export function buildBackup(args: {
   goals: NutritionGoals
   entries: FoodEntry[]
   water: number
+  weightLogs: WeightEntry[]
 }): BackupData {
   let waterDate: string | null = null
   try {
@@ -121,6 +124,7 @@ export function buildBackup(args: {
     entries: args.entries,
     water: args.water,
     waterDate,
+    weightLogs: args.weightLogs,
   }
 }
 

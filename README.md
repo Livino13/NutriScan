@@ -35,7 +35,8 @@ NutriScan is a mobile-friendly web app: snap a photo of a meal, get AI-powered n
 - **AI food scanner** — live camera viewfinder with capture, plus upload/drag-and-drop fallback. Photos are downscaled client-side, then analyzed (calories, protein, carbs, fat, fiber) via Google Gemini. Rename items, pick the meal, and add them one by one. Automatic retries on rate limits and model overload.
 - **Dashboard** — daily calorie budget, macro rings, water tracker, and meal summaries at a glance.
 - **Food diary** — breakfast, lunch, dinner, and snacks, with manual entry and per-item delete.
-- **Insights** — charts and trends over time (built with Recharts).
+- **Insights** — charts and trends over time (built with Recharts), plus a weekly report with week-over-week deltas, low-protein and over-goal flags, and one-tap copy to share
+- **Weight tracking** — log weigh-ins in Profile, see the trend chart with change-per-week stats; keeps profile weight, BMI, and goals in sync.
 - **Onboarding** — guided setup with personalized calorie and macro goals (metric + imperial units).
 - **Profile** — Google sign-in with Firestore cloud sync, BMI overview, editable goals, JSON backup export/import.
 - **PWA** — installable on mobile (192/512 px + maskable icons), works offline via service worker with cached fonts.
@@ -164,6 +165,8 @@ Two supported paths:
 ├── src/
 │   ├── App.tsx               # shell + routing + cloud-sync wiring
 │   ├── Scanner / Dashboard / Diary / Insights / Onboarding / Profile
+│   ├── report.ts             # weekly report builder (deltas, flags, share text)
+│   ├── weight.ts             # weigh-in log, merge, trend stats
 │   ├── firebase.ts           # lazy Firebase init (null when unconfigured)
 │   ├── sync.ts               # merge strategy (entries union, last-write-wins)
 │   ├── useCloudSync.ts       # sign-in, auto-push, live updates
@@ -190,6 +193,8 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 - [x] Google sign-in + Firestore cloud sync
 - [x] PWA offline support
 - [x] Live demo deployment
+- [x] Weekly nutrition reports with highlights and low-protein flags
+- [x] Weight progress tracking with trend chart
 
 ### Next up
 
@@ -197,9 +202,7 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 - [ ] Text-based meal logging (describe a dish, no photo needed)
 - [ ] Per-item portion editor (adjust grams after scanning)
 - [ ] Favorite meals and one-tap re-logging
-- [ ] Weekly nutrition reports with highlights and low-protein flags
 - [ ] Meal-reminder notifications (wiring up the Profile toggle via Notification API + service worker)
-- [ ] Weight progress tracking with trend chart
 - [ ] Custom foods and saved recipes
 
 ### Exploring

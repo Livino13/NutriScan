@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import type { UserProfile, NutritionGoals, FoodEntry } from './types'
+import type { UserProfile, NutritionGoals, FoodEntry, WeightEntry } from './types'
 import { calculateBMI, getBMICategory, calculateGoals } from './utils'
+import { latestWeight, weightStats } from './weight'
 import type { BackupData } from './storage'
 import type { CloudSync } from './useCloudSync'
 
@@ -19,16 +20,19 @@ function cmToFtIn(cm: number): { ft: number; inch: number } {
   return { ft, inch }
 }
 
-export default function Profile({ profile, goals, entries, water, account, onUpdateProfile, onUpdateGoals, onImportData, onExportData, onResetOnboarding }: {
+export default function Profile({ profile, goals, entries, water, weightLogs, account, onUpdateProfile, onUpdateGoals, onImportData, onExportData, onLogWeight, onDeleteWeightLog, onResetOnboarding }: {
   profile: UserProfile
   goals: NutritionGoals
   entries: FoodEntry[]
   water: number
+  weightLogs: WeightEntry[]
   account: CloudSync
   onUpdateProfile: (p: UserProfile) => void
   onUpdateGoals: (g: NutritionGoals) => void
   onImportData: (data: unknown) => boolean
   onExportData: () => BackupData
+  onLogWeight: (weightKg: number) => void
+  onDeleteWeightLog: (id: string) => void
   onResetOnboarding: () => void
 }) {
   const [editing, setEditing] = useState<string | null>(null)
@@ -36,6 +40,8 @@ export default function Profile({ profile, goals, entries, water, account, onUpd
   const [goalDraft, setGoalDraft] = useState(goals)
   const [notifications, setNotifications] = useState(true)
   const [importMsg, setImportMsg] = useState<string | null>(null)
+  const [weightInput, setWeightInput] = useState('')
+  const [weightMsg, setWeightMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -91,6 +97,40 @@ export default function Profile({ profile, goals, entries, water, account, onUpd
     } catch {
       setImportMsg('Export failed. Storage may be unavailable.')
     }
+  }
+
+  function handleLogWeight() {
+    const raw = Number(weightInput)
+    if (!Number.isFinite(raw) || raw <= 0) {
+      setWeightMsg('Enter a valid weight.')
+      return
+    }
+    const weightKg = profile.units === 'imperial' ? lbsToKg(raw) : raw
+    if (weightKg < 20 || weightKg > 400) {
+      setWeightMsg(profile.units === 'imperial' ? 'Enter a weight between 44 and 880 lbs.' : 'Enter a weight between 20 and 400 kg.')
+      return
+    }
+    onLogWeight(Math.round(weightKg * 10) / 10)
+    setWeightInput('')
+    setWeightMsg(null)
+  }
+
+  const stats = weightStats(weightLogs)
+  const recentLogs = [...weightLogs].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp)).slice(0, 5)
+  const chartLogs = [...weightLogs].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)).slice(-20)
+  const displayWeight = (kg: number) => profile.units === 'imperial' ? `${kgToLbs(kg)} lbs` : `${kg} kg`
+
+  function weightPoints(): string {
+    if (chartLogs.length === 0) return ''
+    const W = 300, H = 90, PAD = 12
+    const vals = chartLogs.map(l => l.weightKg)
+    const min = Math.min(...vals), max = Math.max(...vals)
+    const span = max - min || 1
+    return chartLogs.map((l, i) => {
+      const x = chartLogs.length === 1 ? W / 2 : PAD + (i / (chartLogs.length - 1)) * (W - PAD * 2)
+      const y = H - PAD - ((l.weightKg - min) / span) * (H - PAD * 2)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    }).join(' ')
   }
 
   function handleImportFile(file: File) {
@@ -415,6 +455,89 @@ export default function Profile({ profile, goals, entries, water, account, onUpd
           )}
         </div>
 
+        {/* Weight Tracking */}
+        <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Weight Tracking</div>
+          </div>
+          <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {stats.current !== null ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 28, fontWeight: 800, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    {displayWeight(stats.current)}
+                  </span>
+                  {stats.count > 1 && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: stats.change <= 0 ? '#059669' : '#F97316', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                      {stats.change > 0 ? '+' : ''}{profile.units === 'imperial' ? `${Math.round(stats.change * 2.20462)} lbs` : `${stats.change} kg`} total
+                      {stats.weeks >= 1 ? ` · ${stats.perWeek > 0 ? '+' : ''}${profile.units === 'imperial' ? `${Math.round(stats.perWeek * 2.20462)} lbs` : `${stats.perWeek} kg`}/week` : ''}
+                    </span>
+                  )}
+                </div>
+                {chartLogs.length > 1 && (
+                  <div>
+                    <svg viewBox="0 0 300 90" style={{ width: '100%', height: 90, background: '#F8FAFC', borderRadius: 12 }} role="img" aria-label="Weight trend chart">
+                      <polyline points={weightPoints()} fill="none" stroke="#AACB73" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+                      {chartLogs.map((l, i) => {
+                        const pts = weightPoints().split(' ')
+                        const [x, y] = (pts[i] ?? '0,0').split(',')
+                        return <circle key={l.id} cx={x} cy={y} r={3} fill="#365314" />
+                      })}
+                    </svg>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94A3B8', marginTop: 4 }}>
+                      <span>{new Date(chartLogs[0].timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span>{new Date(chartLogs[chartLogs.length - 1].timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.6 }}>
+                No weigh-ins yet. Log your weight below to start tracking your progress over time.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="number"
+                min={0}
+                value={weightInput}
+                onChange={e => setWeightInput(e.target.value)}
+                placeholder={profile.units === 'imperial' ? 'Weight (lbs)' : 'Weight (kg)'}
+                aria-label="Log weight"
+                style={fieldStyle}
+                onFocus={e => { e.target.style.borderColor = '#AACB73' }}
+                onBlur={e => { e.target.style.borderColor = '#E2E8F0' }}
+              />
+              <button onClick={handleLogWeight} style={{ padding: '11px 20px', background: 'linear-gradient(135deg, #AACB73, #10B981)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', flexShrink: 0 }}>
+                Log
+              </button>
+            </div>
+            {weightMsg && (
+              <div style={{ padding: '10px 14px', background: '#FEF2F2', borderRadius: 10, fontSize: 12, color: '#B91C1C' }}>
+                {weightMsg}
+              </div>
+            )}
+            {recentLogs.length > 0 && (
+              <div>
+                {recentLogs.map(l => (
+                  <div key={l.id} style={{ padding: '9px 0', borderBottom: '1px solid #F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 13, color: '#64748B', fontFamily: 'Inter, sans-serif' }}>
+                      {new Date(l.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{displayWeight(l.weightKg)}</span>
+                      <button onClick={() => onDeleteWeightLog(l.id)} aria-label={`Delete weigh-in ${displayWeight(l.weightKg)}`} style={{ background: 'none', border: 'none', color: '#CBD5E1', fontSize: 14, cursor: 'pointer', padding: 4 }}>✕</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: '#94A3B8', lineHeight: 1.5 }}>
+              Logging updates your profile weight, keeping BMI and goals in sync.
+            </div>
+          </div>
+        </div>
+
         {/* Preferences */}
         <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
           <div style={{ padding: '14px 18px', borderBottom: '1px solid #F1F5F9' }}>
@@ -450,7 +573,7 @@ export default function Profile({ profile, goals, entries, water, account, onUpd
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your Data</div>
           </div>
           <div style={{ padding: '14px 18px', fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
-            {entries.length} meals logged · {water.toFixed(1)}L water today.{' '}
+            {entries.length} meals logged · {water.toFixed(1)}L water today · {weightLogs.length} weigh-in{weightLogs.length === 1 ? '' : 's'}.{' '}
             {account.user
               ? `Synced across your devices as ${account.user.email ?? 'your Google account'}.`
               : 'Data lives only on this device — export a backup to keep it safe.'}

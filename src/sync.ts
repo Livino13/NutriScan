@@ -1,5 +1,6 @@
-import type { FoodEntry, NutritionGoals, UserProfile } from './types'
+import type { FoodEntry, NutritionGoals, UserProfile, WeightEntry } from './types'
 import { STORAGE_VERSION } from './storage'
+import { isValidWeightEntry, mergeWeightLogs } from './weight'
 
 /** The local diary snapshot that gets synced. */
 export interface LocalSnapshot {
@@ -8,6 +9,7 @@ export interface LocalSnapshot {
   entries: FoodEntry[]
   water: number
   waterDate: string | null
+  weightLogs: WeightEntry[]
 }
 
 /** Cloud document shape stored at `users/{uid}` in Firestore. */
@@ -27,7 +29,9 @@ export function isValidCloudDoc(data: unknown): data is CloudDoc {
     typeof d.profile === 'object' && d.profile !== null &&
     typeof d.goals === 'object' && d.goals !== null &&
     typeof d.water === 'number' &&
-    (d.waterDate === null || typeof d.waterDate === 'string')
+    (d.waterDate === null || typeof d.waterDate === 'string') &&
+    // weightLogs is optional so docs written before weight tracking still validate
+    (d.weightLogs === undefined || (Array.isArray(d.weightLogs) && (d.weightLogs as unknown[]).every(isValidWeightEntry)))
   )
 }
 
@@ -44,7 +48,8 @@ export function buildCloudDoc(snapshot: LocalSnapshot, updatedAt = new Date().to
 /** Stable serialization used to detect local changes worth pushing. */
 export function serializeSnapshot(s: LocalSnapshot): string {
   const entries = [...s.entries].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-  return JSON.stringify({ ...s, entries })
+  const weightLogs = [...(s.weightLogs ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return JSON.stringify({ ...s, entries, weightLogs })
 }
 
 /**
@@ -79,8 +84,9 @@ export interface MergeResult extends LocalSnapshot {
  */
 export function mergeSnapshots(local: LocalSnapshot, remote: CloudDoc, preferRemote: boolean): MergeResult {
   const entries = mergeEntries(local.entries, remote.entries, preferRemote)
+  const weightLogs = mergeWeightLogs(local.weightLogs ?? [], remote.weightLogs, preferRemote)
   const merged: LocalSnapshot = preferRemote
-    ? { profile: remote.profile, goals: remote.goals, entries, water: remote.water, waterDate: remote.waterDate }
-    : { ...local, entries }
+    ? { profile: remote.profile, goals: remote.goals, entries, water: remote.water, waterDate: remote.waterDate, weightLogs }
+    : { ...local, entries, weightLogs }
   return { ...merged, changed: serializeSnapshot(merged) !== serializeSnapshot(local) }
 }

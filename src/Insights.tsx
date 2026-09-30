@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts'
 import type { FoodEntry, NutritionGoals } from './types'
+import { buildWeeklyReport, formatReportText } from './report'
 
 function StatCard({
   label,
@@ -142,6 +144,36 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export default function Insights({ entries, goals }: { entries: FoodEntry[]; goals: NutritionGoals }) {
   const today = new Date()
+  const [copied, setCopied] = useState(false)
+  const report = buildWeeklyReport(entries, goals, today)
+
+  function copyReport() {
+    const text = formatReportText(report, goals)
+    const done = () => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+    try {
+      const nav = navigator as Navigator & { clipboard?: { writeText: (t: string) => Promise<void> } }
+      if (nav.clipboard) {
+        void nav.clipboard.writeText(text).then(done).catch(() => setCopied(false))
+        return
+      }
+    } catch {
+      // fall through to legacy copy
+    }
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      done()
+    } catch {
+      setCopied(false)
+    }
+  }
 
 const weeklyData = Array.from({ length: 7 }, (_, i) => {
   const date = new Date(today)
@@ -337,6 +369,42 @@ if (daysWithFood === 0) {
               </div>
               <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Avg {avgCal} kcal vs {goals.calories} kcal target{daysWithFood > 0 && daysWithFood < 7 ? ` · ${daysWithFood}/7 days logged` : ''}{isOverGoal ? ' · over target' : ''}</div>
             </div>
+          </div>
+        </div>
+
+        {/* Weekly report */}
+        <div style={{ background: '#fff', borderRadius: 20, padding: '16px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Weekly Report</div>
+            <button onClick={copyReport} style={{ fontSize: 12, fontWeight: 700, color: '#AACB73', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              {copied ? '✓ Copied' : 'Copy Report'}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 12 }}>{report.thisWeek.rangeLabel} · logged {report.thisWeek.daysLogged}/7 days</div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            {[
+              { label: 'Avg kcal', display: report.thisWeek.avgCalories.toLocaleString(), current: report.thisWeek.avgCalories, prev: report.prevWeek.daysLogged > 0 ? report.prevWeek.avgCalories : null },
+              { label: 'Avg protein', display: `${report.thisWeek.avgProtein}g`, current: report.thisWeek.avgProtein, prev: report.prevWeek.daysLogged > 0 ? report.prevWeek.avgProtein : null },
+            ].map(s => {
+              const delta = s.prev !== null && s.prev > 0 ? Math.round(((s.current - s.prev) / s.prev) * 100) : null
+              return (
+                <div key={s.label} style={{ flex: 1, background: '#F8FAFC', borderRadius: 14, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.display}</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: delta === null ? '#CBD5E1' : delta > 0 ? '#F97316' : delta < 0 ? '#059669' : '#94A3B8' }}>
+                    {delta === null ? 'no prior week' : delta === 0 ? 'same as last week' : `${delta > 0 ? '+' : ''}${delta}% vs last week`}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {report.highlights.map((h, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#334155', lineHeight: 1.5, fontFamily: 'Inter, sans-serif' }}>
+                <span style={{ color: '#AACB73', fontWeight: 800 }}>•</span>
+                <span>{h}</span>
+              </div>
+            ))}
           </div>
         </div>
 

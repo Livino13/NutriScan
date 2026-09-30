@@ -32,6 +32,12 @@ export interface FoodEntry {
   timestamp: string;
 }
 
+export interface WeightEntry {
+  id: string;
+  weightKg: number;
+  timestamp: string;
+}
+
 export interface ScannedFood {
   food_name: string;
   serving_size_g: number;

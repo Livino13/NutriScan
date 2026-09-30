@@ -5,6 +5,7 @@ import {
   mergeEntries,
   mergeSnapshots,
   serializeSnapshot,
+  type CloudDoc,
   type LocalSnapshot,
 } from './sync'
 import type { FoodEntry, NutritionGoals, UserProfile } from './types'
@@ -23,7 +24,7 @@ function entry(id: string, name: string, timestamp = '2026-09-27T12:00:00.000Z')
 }
 
 function snapshot(overrides: Partial<LocalSnapshot> = {}): LocalSnapshot {
-  return { profile, goals, entries: [], water: 1, waterDate: 'Sat Sep 27 2026', ...overrides }
+  return { profile, goals, entries: [], water: 1, waterDate: 'Sat Sep 27 2026', weightLogs: [], ...overrides }
 }
 
 describe('isValidCloudDoc', () => {
@@ -92,5 +93,22 @@ describe('serializeSnapshot', () => {
     const a = snapshot({ entries: [entry('a', 'A'), entry('b', 'B')] })
     const b = snapshot({ entries: [entry('b', 'B'), entry('a', 'A')] })
     expect(serializeSnapshot(a)).toBe(serializeSnapshot(b))
+  })
+})
+
+describe('weight log sync', () => {
+  const wlog = (id: string, weightKg: number) => ({ id, weightKg, timestamp: '2026-09-29T10:00:00.000Z' })
+  it('accepts cloud docs written before weight tracking', () => {
+    const { weightLogs, ...legacy } = buildCloudDoc(snapshot())
+    expect(isValidCloudDoc(legacy)).toBe(true)
+    const merged = mergeSnapshots(snapshot(), { ...legacy, weightLogs: undefined } as unknown as CloudDoc, true)
+    expect(merged.weightLogs).toEqual([])
+  })
+  it('unions weight logs across devices', () => {
+    const local = snapshot({ weightLogs: [wlog('a', 70)] })
+    const remote = buildCloudDoc(snapshot({ weightLogs: [wlog('b', 69.5)] }))
+    const merged = mergeSnapshots(local, remote, true)
+    expect(merged.weightLogs.map(w => w.id).sort()).toEqual(['a', 'b'])
+    expect(merged.changed).toBe(true)
   })
 })

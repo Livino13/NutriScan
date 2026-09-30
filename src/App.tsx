@@ -1,7 +1,9 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
 import BottomNav from './BottomNav'
-import type { UserProfile, NutritionGoals, FoodEntry, ActivePage } from './types'
+import type { UserProfile, NutritionGoals, FoodEntry, ActivePage, WeightEntry } from './types'
 import { load, save, loadWater, todayKey, trimEntries, buildBackup, isValidBackup, storageKeys } from './storage'
+import { generateId } from './utils'
+import { latestWeight } from './weight'
 import { useCloudSync } from './useCloudSync'
 
 const Onboarding = lazy(() => import('./Onboarding'))
@@ -51,17 +53,19 @@ export default function App() {
   const [goals, setGoals] = useState<NutritionGoals>(() => ({ ...DEMO_GOALS, ...load(storageKeys.goals, DEMO_GOALS) }))
   const [entries, setEntries] = useState<FoodEntry[]>(() => load(storageKeys.entries, []))
   const [water, setWater] = useState(() => loadWater(0))
+  const [weightLogs, setWeightLogs] = useState<WeightEntry[]>(() => load(storageKeys.weightLogs, []))
   const [activePage, setActivePage] = useState<ActivePage>('home')
 
   const cloud = useCloudSync({
-    profile, goals, entries, water,
-    setProfile, setGoals, setEntries, setWater,
+    profile, goals, entries, water, weightLogs,
+    setProfile, setGoals, setEntries, setWater, setWeightLogs,
   })
 
   useEffect(() => { trimEntries(90) }, [])
   useEffect(() => { save(storageKeys.profile, profile) }, [profile])
   useEffect(() => { save(storageKeys.goals, goals) }, [goals])
   useEffect(() => { save(storageKeys.entries, entries) }, [entries])
+  useEffect(() => { save(storageKeys.weightLogs, weightLogs) }, [weightLogs])
   useEffect(() => {
     save(storageKeys.water, water)
     try {
@@ -86,6 +90,19 @@ export default function App() {
     setEntries(prev => [...prev, entry])
   }
 
+  function logWeight(weightKg: number) {
+    const log: WeightEntry = { id: generateId(), weightKg, timestamp: new Date().toISOString() }
+    setWeightLogs(prev => [...prev, log])
+    setProfile(prev => ({ ...prev, weightKg }))
+  }
+
+  function deleteWeightLog(id: string) {
+    const next = weightLogs.filter(l => l.id !== id)
+    setWeightLogs(next)
+    const latest = latestWeight(next)
+    if (latest) setProfile({ ...profile, weightKg: latest.weightKg })
+  }
+
   function deleteEntry(id: string) {
     setEntries(prev => prev.filter(e => e.id !== id))
   }
@@ -100,6 +117,8 @@ export default function App() {
     setGoals(data.goals)
     setEntries(Array.isArray(data.entries) ? data.entries : [])
     setWater(typeof data.water === 'number' ? data.water : 0)
+    const logs = (data as { weightLogs?: unknown }).weightLogs
+    setWeightLogs(Array.isArray(logs) ? logs.filter((l): l is WeightEntry => typeof l === 'object' && l !== null) : [])
     return true
   }
 
@@ -146,11 +165,14 @@ export default function App() {
                 goals={goals}
                 entries={entries}
                 water={water}
+                weightLogs={weightLogs}
                 account={cloud}
                 onUpdateProfile={setProfile}
                 onUpdateGoals={setGoals}
                 onImportData={importBackup}
-                onExportData={() => buildBackup({ profile, goals, entries, water })}
+                onExportData={() => buildBackup({ profile, goals, entries, water, weightLogs })}
+                onLogWeight={logWeight}
+                onDeleteWeightLog={deleteWeightLog}
                 onResetOnboarding={() => {
                   try {
                     localStorage.removeItem(storageKeys.done)

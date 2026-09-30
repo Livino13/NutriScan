@@ -9,7 +9,7 @@ import {
   type LocalSnapshot,
 } from './sync'
 import { storageKeys } from './storage'
-import type { FoodEntry, NutritionGoals, UserProfile } from './types'
+import type { FoodEntry, NutritionGoals, UserProfile, WeightEntry } from './types'
 
 export interface AccountUser {
   uid: string
@@ -76,10 +76,12 @@ interface SyncArgs {
   goals: NutritionGoals
   entries: FoodEntry[]
   water: number
+  weightLogs: WeightEntry[]
   setProfile: (p: UserProfile) => void
   setGoals: (g: NutritionGoals) => void
   setEntries: (e: FoodEntry[]) => void
   setWater: (w: number) => void
+  setWeightLogs: (w: WeightEntry[]) => void
 }
 
 /**
@@ -108,6 +110,7 @@ export function useCloudSync(args: SyncArgs): CloudSync {
       entries: a.entries,
       water: a.water,
       waterDate: readStored(storageKeys.waterDate),
+      weightLogs: a.weightLogs,
     }
   }
 
@@ -118,6 +121,7 @@ export function useCloudSync(args: SyncArgs): CloudSync {
     a.setGoals(merged.goals)
     a.setEntries(merged.entries)
     a.setWater(merged.water)
+    a.setWeightLogs(merged.weightLogs)
     if (merged.waterDate) writeStored(storageKeys.waterDate, merged.waterDate)
     lastPushedSnapshot.current = serializeSnapshot(merged)
     lastPushedAt.current = remoteUpdatedAt
@@ -247,7 +251,7 @@ export function useCloudSync(args: SyncArgs): CloudSync {
     }
     // Re-run when the diary snapshot changes; user/config gate the effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configured, user, args.profile, args.goals, args.entries, args.water, push])
+  }, [configured, user, args.profile, args.goals, args.entries, args.water, args.weightLogs, push])
 
   const signIn = useCallback(() => {
     if (!configured) return
