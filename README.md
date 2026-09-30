@@ -32,7 +32,7 @@ NutriScan is a mobile-friendly web app: snap a photo of a meal, get AI-powered n
 
 ## Features
 
-- **AI food scanner** — live camera viewfinder with capture, plus upload/drag-and-drop fallback. Photos are downscaled client-side, then analyzed (calories, protein, carbs, fat, fiber) via Google Gemini. Rename items, pick the meal, and add them one by one. Automatic retries on rate limits and model overload.
+- **AI food scanner** — live camera viewfinder with capture, plus upload/drag-and-drop fallback. Photos are downscaled client-side, then analyzed (calories, protein, carbs, fat, fiber, sugar, sodium) via Google Gemini. Rename items, pick the meal, and add them one by one. Automatic retries on rate limits and model overload.
 - **Dashboard** — daily calorie budget, macro rings, water tracker, and meal summaries at a glance.
 - **Food diary** — breakfast, lunch, dinner, and snacks, with manual entry and per-item delete.
 - **Insights** — charts and trends over time (built with Recharts), plus a weekly report with week-over-week deltas, low-protein and over-goal flags, and one-tap copy to share
@@ -195,6 +195,7 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 - [x] Live demo deployment
 - [x] Weekly nutrition reports with highlights and low-protein flags
 - [x] Weight progress tracking with trend chart
+- [x] Micronutrient detail per item (fiber, sugar, sodium surfaced from scan results)
 
 ### Next up
 
@@ -207,7 +208,6 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 
 ### Exploring
 
-- [ ] Micronutrient detail per item (sugar and sodium are already detected — surface them)
 - [ ] Streaks and goal celebrations
 - [ ] Dark mode
 - [ ] Multi-language support

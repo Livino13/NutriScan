@@ -491,8 +491,11 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
                     onFocus={e => { e.target.style.borderColor = '#AACB73'; e.target.style.background = '#fff' }}
                     onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.background = '#F8FAFC' }}
                   />
-                  <div style={{ fontSize: 12, color: '#64748B', fontFamily: 'Inter, sans-serif', marginBottom: 10, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12, color: '#64748B', fontFamily: 'Inter, sans-serif', marginBottom: 4, lineHeight: 1.5 }}>
                     {Math.round(item.food.serving_size_g)}g · {Math.round(item.food.calories)} kcal · P {Math.round(item.food.protein_g)}g · C {Math.round(item.food.carbs_g)}g · F {Math.round(item.food.fat_g)}g
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'Inter, sans-serif', marginBottom: 10, lineHeight: 1.5 }}>
+                    Fiber {Math.round(item.food.fiber_g)}g · Sugar {Math.round(item.food.sugar_g)}g · Sodium {Math.round(item.food.sodium_mg)}mg
                   </div>
                   {item.added ? (
                     <div style={{ padding: '10px', background: '#F0F7DF', border: '1.5px solid #AACB73', borderRadius: 12, textAlign: 'center', color: '#365314', fontSize: 13, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
