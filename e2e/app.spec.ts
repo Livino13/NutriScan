@@ -101,3 +101,18 @@ test('insights and profile render', async ({ page }) => {
   await expect(page.getByText('Nutrition Goals')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Export Backup' })).toBeVisible();
 });
+
+test('described meal logs to diary without a photo', async ({ page }) => {
+  await page.route('**/api/analyze-food', async route => {
+    const body = await route.request().postDataJSON();
+    expect(body.description).toContain('chicken bowl');
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_SCAN) });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Scan', exact: true }).click();
+  await page.getByLabel('Describe your meal').fill('chicken bowl with rice');
+  await page.getByRole('button', { name: 'Analyze Description' }).click();
+  await expect(page.getByRole('textbox', { name: 'Food 1 name' })).toHaveValue('Test Chicken Bowl');
+  await page.getByRole('button', { name: '+ Add to Lunch' }).first().click();
+  await expect(page.getByText('Added 1 item to your lunch diary!')).toBeVisible();
+});

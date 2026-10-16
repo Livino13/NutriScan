@@ -32,7 +32,7 @@ NutriScan is a mobile-friendly web app: snap a photo of a meal, get AI-powered n
 
 ## Features
 
-- **AI food scanner** — live camera viewfinder with capture, plus upload/drag-and-drop fallback. Photos are downscaled client-side, then analyzed (calories, protein, carbs, fat, fiber, sugar, sodium) via Google Gemini. Rename items, pick the meal, and add them one by one. Automatic retries on rate limits and model overload.
+- **AI food scanner** — live camera viewfinder with capture, upload/drag-and-drop fallback, or plain-text description. Photos are downscaled client-side, then analyzed (calories, protein, carbs, fat, fiber, sugar, sodium) via Google Gemini. Rename items, adjust portions in grams, pick the meal, and add them one by one. Automatic retries on rate limits and model overload.
 - **Dashboard** — daily calorie budget, macro rings, water tracker, and meal summaries at a glance.
 - **Food diary** — breakfast, lunch, dinner, and snacks, with manual entry and per-item delete.
 - **Insights** — charts and trends over time (built with Recharts), plus a weekly report with week-over-week deltas, low-protein and over-goal flags, and one-tap copy to share
@@ -196,12 +196,12 @@ Local data lives under `localStorage` keys prefixed `ns_` (`ns_profile`, `ns_goa
 - [x] Weekly nutrition reports with highlights and low-protein flags
 - [x] Weight progress tracking with trend chart
 - [x] Micronutrient detail per item (fiber, sugar, sodium surfaced from scan results)
+- [x] Text-based meal logging (describe a dish, no photo needed)
+- [x] Per-item portion editor (adjust grams after scanning)
 
 ### Next up
 
 - [ ] Barcode lookup for packaged foods (Open Food Facts)
-- [ ] Text-based meal logging (describe a dish, no photo needed)
-- [ ] Per-item portion editor (adjust grams after scanning)
 - [ ] Favorite meals and one-tap re-logging
 - [ ] Meal-reminder notifications (wiring up the Profile toggle via Notification API + service worker)
 - [ ] Custom foods and saved recipes

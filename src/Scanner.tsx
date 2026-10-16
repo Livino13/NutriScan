@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import type { FoodEntry, ScannedFood, FoodScanResponse } from './types'
-import { generateId } from './utils'
+import { generateId, scaleFood } from './utils'
 type ScanState = 'idle' | 'loading' | 'result' | 'error'
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
 interface ScanItem {
   food: ScannedFood
   name: string
+  grams: number
   added: boolean
 }
 
@@ -43,7 +44,7 @@ function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /** POST with retries on transient failures (rate limits, overloaded model). */
-async function postScan(base64: string, signal: AbortSignal): Promise<FoodScanResponse> {
+async function postScan(body: { image: string } | { description: string }, signal: AbortSignal): Promise<FoodScanResponse> {
   let lastError = 'Scan failed'
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     if (attempt > 0) await abortableDelay(RETRY_DELAYS_MS[attempt], signal)
@@ -52,7 +53,7 @@ async function postScan(base64: string, signal: AbortSignal): Promise<FoodScanRe
       res = await fetch('/api/analyze-food', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 }),
+        body: JSON.stringify(body),
         signal,
       })
     } catch (err) {
@@ -121,6 +122,7 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
   const [loadingMsg, setLoadingMsg] = useState(0)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [meal, setMeal] = useState<MealType>('lunch')
+  const [desc, setDesc] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [camStatus, setCamStatus] = useState<'starting' | 'live' | 'denied' | 'unsupported'>('starting')
   const [camError, setCamError] = useState('')
@@ -265,11 +267,11 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
         throw new Error('Image is too large. Please use a smaller photo.')
       }
 
-      const scan: FoodScanResponse = await postScan(base64, controller.signal)
+      const scan: FoodScanResponse = await postScan({ image: base64 }, controller.signal)
       if (!scan.foods || scan.foods.length === 0) {
         throw new Error('No food detected. Try a clearer photo.')
       }
-      setItems(scan.foods.map(f => ({ food: f, name: f.food_name, added: false })))
+      setItems(scan.foods.map(f => ({ food: f, name: f.food_name, grams: Math.max(1, Math.round(f.serving_size_g) || 100), added: false })))
       setState('result')
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -289,6 +291,52 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
     if (f) startScan(f)
   }
 
+  async function startTextScan() {
+    const description = desc.trim()
+    if (description.length < 3) {
+      setError('Describe your meal in a few words (e.g. "grilled chicken bowl with rice").')
+      setState('error')
+      return
+    }
+    stopCamera()
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+    const timeout = setTimeout(() => controller.abort(), 60000)
+
+    setPreview(null)
+    setState('loading')
+    setItems([])
+    setError(null)
+
+    let i = 0
+    setLoadingMsg(0)
+    if (msgInterval.current) clearInterval(msgInterval.current)
+    msgInterval.current = setInterval(() => {
+      i = (i + 1) % loadingMessages.length
+      setLoadingMsg(i)
+    }, 900)
+
+    try {
+      const scan: FoodScanResponse = await postScan({ description }, controller.signal)
+      if (!scan.foods || scan.foods.length === 0) {
+        throw new Error('No food detected. Try a more detailed description.')
+      }
+      setItems(scan.foods.map(f => ({ food: f, name: f.food_name, grams: Math.max(1, Math.round(f.serving_size_g) || 100), added: false })))
+      setState('result')
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('Scan timed out. Please try again.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong')
+      }
+      setState('error')
+    } finally {
+      clearTimeout(timeout)
+      if (msgInterval.current) clearInterval(msgInterval.current)
+    }
+  }
+
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     const f = e.dataTransfer.files?.[0]
@@ -299,10 +347,15 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
     setItems(prev => prev.map((it, i) => (i === index ? { ...it, name } : it)))
   }
 
+  function setGrams(index: number, grams: number) {
+    if (!Number.isFinite(grams)) return
+    setItems(prev => prev.map((it, i) => (i === index ? { ...it, grams: Math.min(2000, Math.max(1, Math.round(grams))) } : it)))
+  }
+
   function handleAddItem(index: number) {
     const item = items[index]
     if (!item || item.added) return
-    const f = item.food
+    const f = scaleFood(item.food, item.grams)
     const entry: FoodEntry = {
       id: generateId(),
       name: item.name.trim() || f.food_name,
@@ -429,6 +482,24 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
 
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
 
+            <div style={{ background: '#fff', borderRadius: 24, padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: 4 }}>No photo? Describe it</div>
+              <p style={{ margin: '0 0 12px', fontSize: 12, color: '#94A3B8', lineHeight: 1.5 }}>Type what you ate and AI will estimate the nutrition.</p>
+              <textarea
+                value={desc}
+                onChange={e => setDesc(e.target.value)}
+                placeholder="e.g. grilled chicken bowl with rice and veggies"
+                aria-label="Describe your meal"
+                rows={2}
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2E8F0', borderRadius: 12, fontSize: 14, fontFamily: 'Inter, sans-serif', color: '#0F172A', background: '#F8FAFC', outline: 'none', resize: 'vertical', marginBottom: 10, boxSizing: 'border-box' }}
+                onFocus={e => { e.target.style.borderColor = '#AACB73'; e.target.style.background = '#fff' }}
+                onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.background = '#F8FAFC' }}
+              />
+              <button onClick={() => void startTextScan()} style={{ width: '100%', padding: '13px', background: '#365314', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', borderRadius: 12, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                Analyze Description
+              </button>
+            </div>
+
             <div style={{ background: '#F5EBDA', borderRadius: 12, padding: '12px 16px', fontSize: 12, color: '#854D0E', lineHeight: 1.6 }}>
               ⚠️ Nutrition values are estimates and may vary depending on ingredients, preparation method, and portion size.
             </div>
@@ -481,7 +552,9 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
 
             {/* Detected items */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {items.map((item, idx) => (
+              {items.map((item, idx) => {
+                const scaled = scaleFood(item.food, item.grams)
+                return (
                 <div key={idx} style={{ background: '#fff', borderRadius: 18, padding: '14px 16px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <input
                     value={item.name}
@@ -491,11 +564,28 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
                     onFocus={e => { e.target.style.borderColor = '#AACB73'; e.target.style.background = '#fff' }}
                     onBlur={e => { e.target.style.borderColor = '#E2E8F0'; e.target.style.background = '#F8FAFC' }}
                   />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Portion</span>
+                    <button onClick={() => setGrams(idx, item.grams - 10)} aria-label={`Decrease portion for food ${idx + 1}`} style={{ width: 30, height: 30, borderRadius: 10, background: '#F8FAFC', border: '1.5px solid #E2E8F0', color: '#0F172A', fontSize: 16, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}>−</button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={2000}
+                      value={item.grams}
+                      onChange={e => setGrams(idx, Number(e.target.value))}
+                      aria-label={`Portion in grams for food ${idx + 1}`}
+                      style={{ width: 64, padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#0F172A', background: '#fff', outline: 'none', textAlign: 'center' }}
+                      onFocus={e => { e.target.style.borderColor = '#AACB73' }}
+                      onBlur={e => { e.target.style.borderColor = '#E2E8F0' }}
+                    />
+                    <button onClick={() => setGrams(idx, item.grams + 10)} aria-label={`Increase portion for food ${idx + 1}`} style={{ width: 30, height: 30, borderRadius: 10, background: '#F8FAFC', border: '1.5px solid #E2E8F0', color: '#0F172A', fontSize: 16, fontWeight: 700, cursor: 'pointer', lineHeight: 1 }}>+</button>
+                    <span style={{ fontSize: 12, color: '#94A3B8' }}>g</span>
+                  </div>
                   <div style={{ fontSize: 12, color: '#64748B', fontFamily: 'Inter, sans-serif', marginBottom: 4, lineHeight: 1.5 }}>
-                    {Math.round(item.food.serving_size_g)}g · {Math.round(item.food.calories)} kcal · P {Math.round(item.food.protein_g)}g · C {Math.round(item.food.carbs_g)}g · F {Math.round(item.food.fat_g)}g
+                    {Math.round(scaled.serving_size_g)}g · {Math.round(scaled.calories)} kcal · P {Math.round(scaled.protein_g)}g · C {Math.round(scaled.carbs_g)}g · F {Math.round(scaled.fat_g)}g
                   </div>
                   <div style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'Inter, sans-serif', marginBottom: 10, lineHeight: 1.5 }}>
-                    Fiber {Math.round(item.food.fiber_g)}g · Sugar {Math.round(item.food.sugar_g)}g · Sodium {Math.round(item.food.sodium_mg)}mg
+                    Fiber {Math.round(scaled.fiber_g)}g · Sugar {Math.round(scaled.sugar_g)}g · Sodium {Math.round(scaled.sodium_mg)}mg
                   </div>
                   {item.added ? (
                     <div style={{ padding: '10px', background: '#F0F7DF', border: '1.5px solid #AACB73', borderRadius: 12, textAlign: 'center', color: '#365314', fontSize: 13, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
@@ -507,7 +597,8 @@ export default function Scanner({ onAddEntry, onBack, onViewDiary }: {  onAddEnt
                     </button>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Meal selector */}

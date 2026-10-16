@@ -71,6 +71,28 @@ const SYSTEM_PROMPT = `You are a nutrition analysis AI. Analyze the food in this
 
 Be realistic with estimates. Return ONLY the JSON object, no markdown, no explanation.`;
 
+const MAX_DESCRIPTION_CHARS = 500;
+
+function buildTextPrompt(description: string): string {
+  return `You are a nutrition analysis AI. The user describes a meal in plain text (no photo available):
+
+"${description}"
+
+Estimate the foods in this description and return a JSON object with a single key "foods": an array of 1 to 4 items (one per distinct dish or food item described; use exactly 1 item for a single dish). Assume typical serving sizes when the description gives no quantities. Each item has these exact fields:
+- food_name: string (name of the food)
+- serving_size_g: number (estimated serving size in grams)
+- calories: number (estimated calories)
+- protein_g: number (protein in grams)
+- carbs_g: number (carbohydrates in grams)
+- fat_g: number (fat in grams)
+- fiber_g: number (fiber in grams)
+- sugar_g: number (sugar in grams)
+- sodium_mg: number (sodium in milligrams)
+- confidence: number (0-1, how confident you are in the identification; lower it when the description is vague)
+
+Be realistic with estimates. Return ONLY the JSON object, no markdown, no explanation.`;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -85,22 +107,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
   }
 
-  const { image } = req.body ?? {};
-  if (!image || typeof image !== "string") {
-    return res.status(400).json({ error: "Missing image field (base64 string)" });
+  const { image, description } = req.body ?? {};
+  const hasImage = typeof image === 'string' && image.length > 0;
+  const desc = typeof description === 'string' ? description.trim() : '';
+  const hasText = desc.length > 0;
+
+  if (!hasImage && !hasText) {
+    return res.status(400).json({ error: 'Provide a food photo or a meal description' });
   }
 
-  if (image.length > MAX_IMAGE_CHARS) {
-    return res.status(413).json({ error: "Image too large. Please use a smaller photo." });
+  if (hasText && desc.length < 3) {
+    return res.status(400).json({ error: 'Description too short. Describe your meal in a few words.' });
+  }
+  if (desc.length > MAX_DESCRIPTION_CHARS) {
+    return res.status(400).json({ error: 'Description too long (max 500 characters).' });
   }
 
-  // Strip data URL prefix if present, detect mime
-  const mimeMatch = image.match(/^data:(image\/\w+);base64,/);
-  const mimeType = mimeMatch?.[1] ?? "image/jpeg";
-  if (!mimeType.startsWith("image/")) {
-    return res.status(400).json({ error: "Invalid image format" });
+  let mimeType = 'image/jpeg';
+  let base64Data = '';
+  if (hasImage) {
+    if (image.length > MAX_IMAGE_CHARS) {
+      return res.status(413).json({ error: 'Image too large. Please use a smaller photo.' });
+    }
+    // Strip data URL prefix if present, detect mime
+    const mimeMatch = (image as string).match(/^data:(image\/\w+);base64,/);
+    mimeType = mimeMatch?.[1] ?? 'image/jpeg';
+    if (!mimeType.startsWith('image/')) {
+      return res.status(400).json({ error: 'Invalid image format' });
+    }
+    base64Data = (image as string).replace(/^data:image\/\w+;base64,/, '');
   }
-  const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
@@ -115,15 +151,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         contents: [
           {
-            parts: [
-              { text: SYSTEM_PROMPT },
-              {
-                inlineData: {
-                  mimeType,
-                  data: base64Data,
+            parts: hasImage
+              ? [
+                { text: SYSTEM_PROMPT },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: base64Data,
+                  },
                 },
-              },
-            ],
+              ]
+              : [{ text: buildTextPrompt(desc) }],
           },
         ],
         generationConfig: {

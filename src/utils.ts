@@ -1,4 +1,4 @@
-import type { UserProfile, NutritionGoals } from './types';
+import type { UserProfile, NutritionGoals, ScannedFood } from './types';
 
 export function calculateBMI(weightKg: number, heightCm: number): number {
   if (!weightKg || !heightCm) return 0;
@@ -73,4 +73,26 @@ export function generateId(): string {
     return crypto.randomUUID()
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
+/**
+ * Rescales a scanned food to a custom portion size. All macros scale
+ * linearly from the detected serving; grams are clamped to 1–2000.
+ */
+export function scaleFood(food: ScannedFood, grams: number): ScannedFood {
+  const base = Math.max(1, Math.round(food.serving_size_g) || 100)
+  const g = Math.min(2000, Math.max(1, Math.round(grams) || base))
+  const k = g / base
+  const scaled = (n: number) => Math.round(Number(n) * k * 10) / 10
+  return {
+    ...food,
+    serving_size_g: g,
+    calories: scaled(food.calories),
+    protein_g: scaled(food.protein_g),
+    carbs_g: scaled(food.carbs_g),
+    fat_g: scaled(food.fat_g),
+    fiber_g: scaled(food.fiber_g),
+    sugar_g: scaled(food.sugar_g),
+    sodium_mg: scaled(food.sodium_mg),
+  }
 }

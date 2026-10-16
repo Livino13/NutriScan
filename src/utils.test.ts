@@ -7,7 +7,9 @@ import {
   clamp,
   pct,
   generateId,
+  scaleFood,
 } from './utils'
+import type { ScannedFood } from './types'
 
 describe('calculateBMI', () => {
   it('computes BMI for typical values', () => {
@@ -85,5 +87,42 @@ describe('generateId', () => {
   it('produces unique non-empty ids', () => {
     const ids = new Set(Array.from({ length: 100 }, generateId))
     expect(ids.size).toBe(100)
+  })
+})
+
+describe('scaleFood', () => {
+  const food: ScannedFood = {
+    food_name: 'Test Bowl',
+    serving_size_g: 200,
+    calories: 400,
+    protein_g: 20,
+    carbs_g: 50,
+    fat_g: 10,
+    fiber_g: 5,
+    sugar_g: 6,
+    sodium_mg: 300,
+    confidence: 0.9,
+  }
+
+  it('scales macros linearly with portion size', () => {
+    const half = scaleFood(food, 100)
+    expect(half.serving_size_g).toBe(100)
+    expect(half.calories).toBe(200)
+    expect(half.protein_g).toBe(10)
+    expect(half.sodium_mg).toBe(150)
+    const dbl = scaleFood(food, 400)
+    expect(dbl.calories).toBe(800)
+    expect(dbl.carbs_g).toBe(100)
+  })
+
+  it('keeps values unchanged at the detected serving', () => {
+    expect(scaleFood(food, 200)).toMatchObject({ calories: 400, protein_g: 20 })
+  })
+
+  it('clamps out-of-range portions and falls back to the serving for empty input', () => {
+    expect(scaleFood(food, -50).serving_size_g).toBe(1)
+    expect(scaleFood(food, 5000).serving_size_g).toBe(2000)
+    expect(scaleFood(food, 0).serving_size_g).toBe(200)
+    expect(scaleFood(food, Number.NaN).serving_size_g).toBe(200)
   })
 })

@@ -80,7 +80,7 @@ describe('analyze-food handler', () => {
     expect(state.code).toBe(500)
   })
 
-  it('returns 400 when the image field is missing', async () => {
+  it('returns 400 when neither image nor description is provided', async () => {
     const { res, state } = makeRes()
     await handler(makeReq({ body: {} }), res)
     expect(state.code).toBe(400)
@@ -124,8 +124,7 @@ describe('analyze-food handler', () => {
     expect(state.code).toBe(502)
   })
 
-  it('rate-limits to 20 requests per minute per IP', async () => {
-    const fetchMock = vi.fn(async () => geminiOk())
+  it('rate-limits to 20 requests per minute per IP', async () => {    const fetchMock = vi.fn(async () => geminiOk())
     vi.stubGlobal('fetch', fetchMock)
     const ip = uniqueIp()
     let lastCode = 0
@@ -136,5 +135,28 @@ describe('analyze-food handler', () => {
     }
     expect(lastCode).toBe(429)
     expect(fetchMock).toHaveBeenCalledTimes(20)
+  })
+
+  it('analyzes a text description without an image', async () => {
+    const fetchMock = vi.fn(async () => geminiOk())
+    vi.stubGlobal('fetch', fetchMock)
+    const { res, state } = makeRes()
+    await handler(makeReq({ body: { description: 'grilled chicken bowl with rice' } }), res)
+    expect(state.code).toBe(200)
+    const foods = (state.body as { foods: typeof ITEM[] }).foods
+    expect(foods).toHaveLength(1)
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body)
+    const prompt = sent.contents[0].parts[0].text as string
+    expect(prompt).toContain('grilled chicken bowl with rice')
+    expect(prompt).not.toContain('inlineData')
+  })
+
+  it('rejects too-short and too-long descriptions', async () => {
+    const short = makeRes()
+    await handler(makeReq({ body: { description: 'no' } }), short.res)
+    expect(short.state.code).toBe(400)
+    const long = makeRes()
+    await handler(makeReq({ body: { description: 'x'.repeat(501) } }), long.res)
+    expect(long.state.code).toBe(400)
   })
 })
